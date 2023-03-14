@@ -26,6 +26,7 @@
 #include <eigen3/Eigen/Geometry>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <stack>
 #include <thread>  // multithreading (using libs=-lpthread)
 #include <vector>
@@ -33,16 +34,17 @@
 #include "Model.h"
 #include "Object.h"
 #include "coordinateTransform.h"
-
 Eigen::Vector3d hcurr_temp;
 Eigen::Vector3d ocurr_temp;
 
 std::vector<Eigen::Vector3d> optitrack_ptsA;
 std::vector<Eigen::Vector3d> haptic_ptsB;
-coordinateTransform *t;
+// coordinateTransform *t;
 bool matrix_flag = false;
 
+std::shared_ptr<coordinateTransform> t;  // = std::make_shared<coordinateTransform>();
 std::shared_ptr<OptiTrack> opti = std::make_shared<OptiTrack>();
+
 class DataTransportClass  // This class carried data into the ServoLoop thread
 {
    public:
@@ -78,7 +80,7 @@ int main(int argc, char **argv) {
 // int main(int argc, char *argv[]) {
 void glut_main(int argc, char **argv) {
     QHGLUT *DisplayObject = new QHGLUT(argc, argv);  // create a display window
-    DisplayObject->setBackgroundColor(0.4, 0.5, 0.1);
+    DisplayObject->setBackgroundColor(0.32, 0.31, 0.31);
     DataTransportClass dataObject;  // Initialize an Object to transport data into the servoloop callback
 
     DeviceSpace *OmniSpace = new DeviceSpace;      // Find the default Phantom Device
@@ -91,17 +93,17 @@ void glut_main(int argc, char **argv) {
     dataObject.cursorSphere->setHapticVisibility(false);     // Make the Sphere haptically invisible. this sphere replaces the cursor hence it must be haptically invisible or the proxy will keep colliding with the sphere
     DisplayObject->tell(dataObject.cursorSphere);            // Tell QuickHaptics
 
-    // dataObject.forceArrow = new Cylinder(chargeRadius / 4, 1, 15);  // Initialise a cylinder
-    // dataObject.forceArrow->setShapeColor(0.2, 0.7, 0.2);            // Give it a color
-    // dataObject.forceArrow->setHapticVisibility(false);              // Make it haptictically invisible
-    // dataObject.forceArrow->setName("forceArrow");                   // Give it a name
-    // DisplayObject->tell(dataObject.forceArrow);                     // tell Quickhaptics
+    dataObject.forceArrow = new Cylinder(chargeRadius / 4, 1, 15);  // Initialise a cylinder
+    dataObject.forceArrow->setShapeColor(0.2, 0.7, 0.2);            // Give it a color
+    dataObject.forceArrow->setHapticVisibility(false);              // Make it haptictically invisible
+    dataObject.forceArrow->setName("forceArrow");                   // Give it a name
+    DisplayObject->tell(dataObject.forceArrow);                     // tell Quickhaptics
 
-    // dataObject.forceArrowTip = new Cone(2, 4, 15);           // Initialise a cone
-    // dataObject.forceArrowTip->setShapeColor(1.0, 0.0, 0.0);  // Give it a color
-    // dataObject.forceArrowTip->setHapticVisibility(false);    // Make it haptictically invisible
-    // dataObject.forceArrowTip->setName("forceArrowTip");      // Give it a name
-    // DisplayObject->tell(dataObject.forceArrowTip);           // tell Quickhaptics
+    dataObject.forceArrowTip = new Cone(2, 4, 15);           // Initialise a cone
+    dataObject.forceArrowTip->setShapeColor(1.0, 0.0, 0.0);  // Give it a color
+    dataObject.forceArrowTip->setHapticVisibility(false);    // Make it haptictically invisible
+    dataObject.forceArrowTip->setName("forceArrowTip");      // Give it a name
+    DisplayObject->tell(dataObject.forceArrowTip);           // tell Quickhaptics
 
     dataObject.Model = new TriMesh("Models/skull.obj");  // Load a Skull  Model for the Mesh
     dataObject.Model->setName("Skull");                  // Give it a name
@@ -115,10 +117,11 @@ void glut_main(int argc, char **argv) {
     dataObject.deviceCursor->setCursorGraphicallyVisible(false);  // Make it graphically invisible
     DisplayObject->tell(dataObject.deviceCursor);                 // Tell Quickhaptics about it.
 
-    // dataObject.descriptionText = new Text(20.0, "This example demonstrates Coulomb Forces between two dynamic charges",
-    //                                       0.1, 0.9);
+    // adding text to the screen
+    // dataObject.descriptionText = new Text(20.0, "Calibrate the System First!", 0.1, 0.9);
     // dataObject.descriptionText->setShapeColor(0.7, 0.0, 0.4);
     // DisplayObject->tell(dataObject.descriptionText);
+    // end of text
 
     DisplayObject->preDrawCallback(GraphicsCallback);                                             // Register the graphics callback
     OmniSpace->startServoLoopCallback(startEffectCB, computeForceCB, stopEffectCB, &dataObject);  // Register the servoloop callback
@@ -160,14 +163,14 @@ void glut_main(int argc, char **argv) {
 void GraphicsCallback(void) {
     QHGLUT *localDisplayObject = QHGLUT::searchWindow("Coulomb Field Demo");  // Get a Pointer to the display object
     Cursor *localDeviceCursor = Cursor::searchCursor("devCursor");            // Get a pointer to the cursor
-    // Cylinder *localForceArrow = Cylinder::searchCylinder("forceArrow");       // get a pointer to the cylinder
-    // Cone *localForceArrowTip = Cone::searchCone("forceArrowTip");             // get a pointer to the cylinder
-    Sphere *localCursorSphere = Sphere::searchSphere("cursorSphere");  // get a pointer top the Sphere
+    Cylinder *localForceArrow = Cylinder::searchCylinder("forceArrow");       // get a pointer to the cylinder
+    Cone *localForceArrowTip = Cone::searchCone("forceArrowTip");             // get a pointer to the cylinder
+    Sphere *localCursorSphere = Sphere::searchSphere("cursorSphere");         // get a pointer top the Sphere
 
-    // if (localDisplayObject == NULL || localDeviceCursor == NULL || localForceArrow == NULL || localCursorSphere == NULL)
-    // return;
-    if (localDisplayObject == NULL || localDeviceCursor == NULL || localCursorSphere == NULL)
+    if (localDisplayObject == NULL || localDeviceCursor == NULL || localForceArrow == NULL || localCursorSphere == NULL)
         return;
+    // if (localDisplayObject == NULL || localDeviceCursor == NULL || localCursorSphere == NULL)
+    //     return;
 
     hduMatrix CylinderTransform;  // Transformation for the Cylinder. This transform makes it point toward the Model
     hduVector3Dd localCursorPosition;
@@ -235,13 +238,13 @@ void GraphicsCallback(void) {
     CylinderTransform[3][3] = 1.0;
     CylinderTransform = CylinderTransform * hduMatrix::createTranslation(localCursorPosition[0], localCursorPosition[1], localCursorPosition[2]);
 
-    // localForceArrow->update(chargeRadius / 4, ForceMagnitude * 50, 15);
-    // localForceArrow->setTranslation(localCursorPosition);
-    // localForceArrow->setTransform(CylinderTransform);
+    localForceArrow->update(chargeRadius / 4, ForceMagnitude * 50, 15);
+    localForceArrow->setTranslation(localCursorPosition);
+    localForceArrow->setTransform(CylinderTransform);
 
-    // hduMatrix ConeTransform = CylinderTransform * hduMatrix::createTranslation(DirectionVecX[0] * ForceMagnitude * 50, DirectionVecX[1] * ForceMagnitude * 50, DirectionVecX[2] * ForceMagnitude * 50);
+    hduMatrix ConeTransform = CylinderTransform * hduMatrix::createTranslation(DirectionVecX[0] * ForceMagnitude * 50, DirectionVecX[1] * ForceMagnitude * 50, DirectionVecX[2] * ForceMagnitude * 50);
 
-    // localForceArrowTip->setTransform(ConeTransform);
+    localForceArrowTip->setTransform(ConeTransform);
     /////////////////////////////////////////////
 }
 
@@ -411,7 +414,8 @@ void glutMenuFunction(int MenuID) {
 
     if (MenuID == 2) {
         // calibrate
-        t = new coordinateTransform(optitrack_ptsA, haptic_ptsB);
+        t = std::make_shared<coordinateTransform>(optitrack_ptsA, haptic_ptsB);
+        // t = new coordinateTransform(optitrack_ptsA, haptic_ptsB);
         // std::cout << "----------Transformation Matrix----------" << std::endl;
         t->calculateTransformMatrix();
         // std::cout << t.transformMat << std::endl;
